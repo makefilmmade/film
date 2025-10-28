@@ -1,5 +1,5 @@
 <script>
-  // 고정된 학생 계정 목록 (이름, 학번, 비밀번호)
+  // 고정된 학생 계정 목록
   const allowedStudents = [
     { name: "유영식", id: "1111", password: "1111" },
     { name: "영화학", id: "1111", password: "1111" },
@@ -35,74 +35,45 @@
     { name: "정다빈", id: "ar23020714", password: "020714" },
     { name: "김시우", id: "ar24050402", password: "0402" },
     { name: "박순홍", id: "ar24690830", password: "1011" },
-    { name: "테스트", id: "0000", password: "0000" },
     { name: "신민주", id: "ar25030812", password: "minju812!" },
     { name: "배효미", id: "ar25800929", password: "4208" }
   ];
 
   // 보이지 않는 문자 제거 + 한글 정규화 + 공백 정리
-  const killZW = (s) => s.replace(/[\u200B-\u200D\uFEFF]/g, ""); // zero-width류 제거
-  const normK = (s) => killZW(String(s ?? ""))
-    .normalize("NFC")        // 한글 조합 정규화
-    .replace(/\s+/g, " ")    // 다중 공백 1칸
-    .trim();
+  const killZW = (s) => String(s ?? "").replace(/[\u200B-\u200D\uFEFF]/g, "");
+  const normK  = (s) => killZW(s).normalize("NFC").replace(/\s+/g, " ").trim();
+  const normId = (s) => normK(s).toLowerCase();          // 학번: 소문자 통일
+  const normPw = (s) => killZW(s).trim();                 // 비번: 앞뒤공백/ZW 제거
 
-  // 학번은 영문소문자 고정 + 공백/ZW 제거 (입력 편차 흡수)
-  const normId = (s) => normK(s).toLowerCase();
+  // 학번으로 빠른 조회 맵
+  const idMap = new Map(allowedStudents.map(s => [normId(s.id), s]));
 
-  // 비밀번호는 일반적으로 대소문자/기호를 유지하지만,
-  // 실수로 앞뒤 공백이나 ZW가 들어가면 제거
-  const normPw = (s) => killZW(String(s ?? "")).trim();
+  const setErr = (msg) => document.getElementById("errorMsg").textContent = msg;
 
-  // 데이터 쪽도 동일한 규칙으로 미리 정규화(룩업 맵 구성)
-  const idMap = new Map();
-  for (const s of allowedStudents) {
-    const key = normId(s.id);
-    if (!idMap.has(key)) idMap.set(key, s); // 같은 학번 중복 시 첫 항목 유지
-  }
-
-  const errorMsg = (msg) => {
-    const el = document.getElementById("errorMsg");
-    el.textContent = msg;
-  };
-
-  document.getElementById("loginForm").addEventListener("submit", function (e) {
+  document.getElementById("loginForm").addEventListener("submit", (e) => {
     e.preventDefault();
 
-    const nameInput = normK(document.getElementById("studentName").value);
-    const idInput = normId(document.getElementById("studentId").value);
-    const pwInput = normPw(document.getElementById("studentPassword").value);
-
-    // 디버그 로그 (필요 시 F12 콘솔에서 확인)
-    console.log("[LOGIN-DEBUG] input:", { nameInput, idInput, pwInput });
+    const nameInput = normK(document.getElementById("studentName").value); // 표시용
+    const idInput   = normId(document.getElementById("studentId").value);
+    const pwInput   = normPw(document.getElementById("studentPassword").value);
 
     const student = idMap.get(idInput);
     if (!student) {
-      errorMsg("학번을 다시 확인해주세요. (공백/대소문자 주의)");
+      setErr("학번을 다시 확인해주세요.");
+      return;
+    }
+    if (normPw(student.password) !== pwInput) {
+      setErr("비밀번호가 일치하지 않습니다.");
       return;
     }
 
-    const expectedPw = normPw(student.password);
-    const ok = pwInput === expectedPw;
+    // 로그인 성공: 이름은 목록의 정식 표기로 저장
+    localStorage.setItem("studentInfo", JSON.stringify({
+      name: student.name,
+      studentId: student.id
+    }));
 
-    console.log("[LOGIN-DEBUG] foundStudent:", student, "pwMatch:", ok);
-
-    if (ok) {
-      // 이름은 목록의 정식 표기로 저장 (입력과 다른 경우도 정상화)
-      localStorage.setItem("studentInfo", JSON.stringify({
-        name: student.name,
-        studentId: student.id
-      }));
-
-      // 리다이렉트 실패(404)를 로그인 실패로 오해하는 경우가 있어 try 처리
-      try {
-        window.location.href = "form.html";
-      } catch (err) {
-        console.error("Redirect failed:", err);
-        errorMsg("로그인은 성공했지만, 이동에 실패했습니다. form.html 경로를 확인하세요.");
-      }
-    } else {
-      errorMsg("비밀번호가 일치하지 않습니다.");
-    }
+    // 이동 (경로/대소문자 주의)
+    window.location.href = "form.html";
   });
 </script>
